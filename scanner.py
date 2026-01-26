@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-import pandas_ta as ta
+import numpy as np
 import os
 import time
 
@@ -25,11 +25,19 @@ def get_data(endpoint, params={}):
         return res.get('data', [])
     except: return []
 
+# MANUEL RSI HESAPLAMA (Dış kütüphaneye gerek bırakmaz)
+def calculate_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
 def get_market_trend():
     btc = get_data("/api/v5/market/tickers", {"instId": "BTC-USDT-SWAP"})
     if btc:
-        change = float(btc[0]['last']) / float(btc[0]['open24h']) - 1
-        return "📉 AYI (ZAYIF)" if change < 0 else "📈 BOĞA (GÜÇLÜ)"
+        change = (float(btc[0]['last']) / float(btc[0]['open24h']) - 1) * 100
+        return f"%{round(change, 2)} {'📉' if change < 0 else '📈'}"
     return "BELİRSİZ"
 
 def check_whale_walls(symbol):
@@ -47,24 +55,29 @@ def scan():
     signals = []
     for t in tickers:
         symbol = t['instId']
-        if "USDT-SWAP" not in symbol: continue
+        if "-USDT-" not in symbol: continue
         
         change = (float(t['last']) / float(t['open24h']) - 1) * 100
         if change > CHANGE_24H_LIMIT:
-            funding = get_data("/api/v5/public/funding-rate", {"instId": symbol})
-            f_rate = float(funding[0]['fundingRate']) * 100 if funding else 0
-            
+            # 1. Teknik Veri (RSI)
             candles = get_data("/api/v5/market/candles", {"instId": symbol, "bar": "1H", "limit": "50"})
             if not candles: continue
             df = pd.DataFrame(candles, columns=['ts','o','h','l','c','v','vc','vq','conf'])
             df['c'] = df['c'].astype(float)
-            rsi = ta.rsi(df['c'], length=14).iloc[-1]
             
+            # Kendi RSI fonksiyonumuzu kullanıyoruz
+            rsi_series = calculate_rsi(df['c'][::-1]) # Veriyi çevirip hesapla
+            rsi = rsi_series.iloc[-1]
+            
+            # 2. Fonlama ve Balina Verisi
+            funding = get_data("/api/v5/public/funding-rate", {"instId": symbol})
+            f_rate = float(funding[0]['fundingRate']) * 100 if funding else 0
             wall_ratio, ask_vol = check_whale_walls(symbol)
             
-            if rsi > RSI_LIMIT or f_rate > 0.05 or wall_ratio > WHALE_WALL_RATIO:
+            # SİNYAL KOŞULLARI
+            if rsi > RSI_LIMIT or wall_ratio > WHALE_WALL_RATIO:
                 msg = (f"🚨 *SHORT SİNYALİ: {symbol}*\n\n"
-                       f"🌍 Market Trendi: {trend}\n"
+                       f"🌍 BTC 24s: {trend}\n"
                        f"📈 24s Değişim: %{round(change, 2)}\n"
                        f"📊 RSI (1H): {round(rsi, 2)}\n"
                        f"💸 Funding: %{round(f_rate, 4)}\n"
