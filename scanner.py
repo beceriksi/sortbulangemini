@@ -25,7 +25,7 @@ def get_data(endpoint, params={}):
         return res.get('data', [])
     except: return []
 
-# MANUEL RSI HESAPLAMA (Dış kütüphaneye gerek bırakmaz)
+# MANUEL RSI HESAPLAMA
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -50,7 +50,10 @@ def check_whale_walls(symbol):
 def scan():
     trend = get_market_trend()
     tickers = get_data("/api/v5/market/tickers", {"instType": "SWAP"})
-    tickers = sorted(tickers, key=lambda x: float(x['vol24h']), reverse=True)[:100]
+    
+    # --- DEĞİŞEN TEK SATIR BURASI: [:100] SİLİNDİ, TÜM PARİTELERİ TARAR ---
+    tickers = sorted(tickers, key=lambda x: float(x['vol24h']), reverse=True)
+    # ---------------------------------------------------------------------
     
     signals = []
     for t in tickers:
@@ -66,7 +69,7 @@ def scan():
             df['c'] = df['c'].astype(float)
             
             # Kendi RSI fonksiyonumuzu kullanıyoruz
-            rsi_series = calculate_rsi(df['c'][::-1]) # Veriyi çevirip hesapla
+            rsi_series = calculate_rsi(df['c'][::-1]) 
             rsi = rsi_series.iloc[-1]
             
             # 2. Fonlama ve Balina Verisi
