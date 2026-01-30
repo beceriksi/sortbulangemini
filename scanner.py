@@ -3,11 +3,11 @@ import pandas as pd
 import numpy as np
 import os
 
-# GitHub Secrets üzerinden gelen veriler
+# GitHub Secrets verileri
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-# STRATEJİ AYARLARI (Kriterlerin korundu)
+# STRATEJİ LİMİTLERİN
 RSI_LIMIT = 70
 CHANGE_24H_LIMIT = 8
 WHALE_WALL_RATIO = 2.5
@@ -51,11 +51,11 @@ def check_whale_walls(symbol):
     return (asks / bids if bids > 0 else 1), asks
 
 def scan():
-    print("Tarama başlatıldı (Tüm Pariteler kontrol ediliyor)...")
+    print("Tarama başlatıldı (scanner.py)...")
     trend = get_market_trend()
     tickers = get_data("/api/v5/market/tickers", {"instType": "SWAP"})
     
-    # Kapsam genişletildi: Tüm pariteler taranıyor
+    # Tüm pariteler taranıyor (Kapsam genişletildi)
     tickers = sorted(tickers, key=lambda x: float(x['vol24h']), reverse=True)
     
     signals = []
@@ -64,8 +64,6 @@ def scan():
         if "-USDT-" not in symbol: continue
         
         change = (float(t['last']) / float(t['open24h']) - 1) * 100
-        
-        # %8 Yükseliş Şartı
         if change > CHANGE_24H_LIMIT:
             candles = get_data("/api/v5/market/candles", {"instId": symbol, "bar": "1H", "limit": "50"})
             if not candles: continue
@@ -79,7 +77,6 @@ def scan():
             f_rate = float(funding[0]['fundingRate']) * 100 if funding else 0
             wall_ratio, ask_vol = check_whale_walls(symbol)
             
-            # RSI > 70 veya Balina Duvarı > 2.5x Şartı
             if rsi > RSI_LIMIT or wall_ratio > WHALE_WALL_RATIO:
                 msg = (f"🚨 *SHORT SİNYALİ: {symbol}*\n\n"
                        f"🌍 BTC 24s: {trend}\n"
@@ -91,10 +88,9 @@ def scan():
                 
     if signals:
         send_telegram("\n---\n".join(signals))
-        print(f"{len(signals)} adet sinyal Telegram'a gönderildi.")
+        print(f"Başarılı! {len(signals)} sinyal gönderildi.")
     else:
-        print("Şartlara uyan coin bulunamadı.")
+        print("Uygun kriterlerde coin bulunamadı.")
 
 if __name__ == "__main__":
     scan()
-    # GitHub Actions kullanıldığı için döngü (while True) kaldırıldı.
