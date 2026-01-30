@@ -1,27 +1,32 @@
-name: OKX Short Scanner
+name: OKX Funding & RSI Bot Scan
 
 on:
   schedule:
+    # Her saat başı çalışması için (0. dakikada)
     - cron: '0 * * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Manuel olarak istediğinde başlatabilmen için düğme ekler
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas numpy
 
-      - name: Run Scanner
+      - name: Run Bot
         env:
+          # GitHub Secrets kısmına eklediğin değişkenler
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python scanner.py
+        run: python bot_dosyanin_adi.py # BURAYI DOSYA ADINLA DEĞİŞTİR
